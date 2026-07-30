@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CV Tool – Summary Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+:root{
+  --bg:#f0f4f8; --card:#ffffff; --hdr:#0f2044;
+  --ac:#1a56db; --gn:#059669; --or:#d97706; --rd:#dc2626;
+  --bd:#e2e8f0; --tx:#1e293b; --mu:#64748b;
+  --r:12px; --sh:0 4px 20px rgba(0,0,0,0.10);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;padding-bottom:48px;}
+
+/* ── Header ── */
+.hdr{background:linear-gradient(135deg,#0f2044 0%,#1a56db 100%);color:#fff;padding:22px 20px 18px;text-align:center;}
+.hdr .logo{font-size:2rem;margin-bottom:4px;}
+.hdr h1{font-size:1.25rem;font-weight:700;letter-spacing:.3px;}
+.hdr .sub{font-size:.78rem;opacity:.75;margin-top:3px;}
+.hdr .badge{display:inline-block;background:rgba(255,255,255,.18);border-radius:20px;padding:3px 14px;font-size:.72rem;font-weight:700;margin-top:8px;letter-spacing:.5px;}
+
+/* ── Container ── */
+.wrap{max-width:720px;margin:0 auto;padding:20px 14px;}
+
+/* ── Alert bars ── */
+.ok-bar{background:#d1fae5;color:#065f46;border-left:4px solid var(--gn);border-radius:8px;padding:12px 16px;font-weight:600;font-size:.88rem;margin-bottom:18px;}
+.warn-bar{background:#fef3c7;color:#92400e;border-left:4px solid var(--or);border-radius:8px;padding:12px 16px;font-weight:600;font-size:.85rem;margin-bottom:18px;}
+.err-bar{background:#fee2e2;color:#991b1b;border-left:4px solid var(--rd);border-radius:8px;padding:12px 16px;font-weight:700;font-size:.9rem;margin-bottom:18px;}
+
+/* ── Key metrics grid ── */
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px;}
+.met{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:16px 12px;text-align:center;}
+.met .lbl{font-size:.7rem;color:var(--mu);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.met .val{font-size:1.9rem;font-weight:800;color:var(--ac);line-height:1;}
+.met .unit{font-size:.72rem;color:var(--mu);margin-top:4px;}
+@media(min-width:500px){.metrics{grid-template-columns:repeat(4,1fr);}}
+
+/* ── Section cards ── */
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:16px;}
+.sec-head{background:#f8fafc;border-bottom:1px solid var(--bd);padding:10px 18px;font-size:.75rem;font-weight:700;color:var(--ac);letter-spacing:.6px;text-transform:uppercase;}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 18px;border-bottom:1px solid var(--bd);font-size:.86rem;}
+.row:last-child{border-bottom:none;}
+.rl{color:var(--mu);flex:0 0 52%;}
+.rv{font-weight:600;text-align:right;}
+
+/* ── 3-column condition table ── */
+.tbl{width:100%;border-collapse:collapse;font-size:.83rem;}
+.tbl th{background:#f1f5f9;padding:8px 10px;text-align:center;font-size:.72rem;font-weight:700;color:var(--mu);text-transform:uppercase;border-bottom:1px solid var(--bd);}
+.tbl td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--bd);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl .rl2{text-align:left;color:var(--mu);font-weight:600;font-size:.78rem;}
+
+/* ── Pill badges ── */
+.pill{display:inline-block;border-radius:20px;padding:3px 11px;font-size:.75rem;font-weight:700;}
+.p-blue{background:#dbeafe;color:var(--ac);}
+.p-green{background:#d1fae5;color:#065f46;}
+.p-red{background:#fee2e2;color:var(--rd);}
+.p-yellow{background:#fef9c3;color:#854d0e;}
+.p-gray{background:#f1f5f9;color:#475569;}
+
+/* ── Raw JSON ── */
+details summary{cursor:pointer;font-size:.82rem;color:var(--ac);font-weight:600;padding:10px 0;user-select:none;}
+pre{background:#f1f5f9;border-radius:8px;padding:14px;font-size:.73rem;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#334155;margin-top:6px;}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:60px 20px;color:var(--mu);}
+.empty .icon{font-size:3rem;margin-bottom:12px;}
+.empty h2{font-size:1.1rem;margin-bottom:8px;color:var(--tx);}
+
+/* ── Footer ── */
+.footer{text-align:center;font-size:.74rem;color:var(--mu);margin-top:24px;padding:0 16px;line-height:1.7;}
+
+@media print{
+  body{background:#fff;}
+  .hdr{background:#0f2044!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .card,.met{box-shadow:none;border:1px solid var(--bd);}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo">⚙️</div>
+  <h1>Control Valve Sizing — Summary Report</h1>
+  <div class="sub">Smart Instru Calculation · IEC 60534-2-1:2011 / ANSI ISA-75.01.01</div>
+  <div class="badge">COMPRESSED QR · OFFLINE · NO SERVER</div>
+</div>
+
+<div class="wrap" id="wrap">
+  <div class="empty" id="loading"><div class="icon">🔄</div><h2>Decoding QR data…</h2></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// DECOMPRESSOR  —  mirrors _cvCompressPayload() in the tool
+// Supports: CVSZ1: prefix  → pako gzip + Base64
+// ════════════════════════════════════════════════════════
+const PREFIX = 'CVSZ1:';
+
+function decompress(encoded){
+  if(!encoded.startsWith(PREFIX)) throw new Error('Unknown prefix — expected CVSZ1:');
+  const b64    = encoded.slice(PREFIX.length);
+  const binary = atob(b64);
+  const bytes  = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  const json = new TextDecoder().decode(pako.ungzip(bytes));
+  return JSON.parse(json);
+}
+
+// ════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════
+const v  = x => (x !== undefined && x !== null && x !== '') ? x : '—';
+const vn = (x,dec=2) => (x !== undefined && x !== null && x !== '' && !isNaN(x)) ? Number(x).toFixed(dec) : '—';
+
+function noisePill(n){
+  if(n===undefined||n===null||n==='') return '<span class="pill p-gray">—</span>';
+  const val=parseFloat(n);
+  if(val<75)  return `<span class="pill p-green">✅ ${val} dB(A)</span>`;
+  if(val<85)  return `<span class="pill p-yellow">⚠ ${val} dB(A)</span>`;
+  return             `<span class="pill p-red">🔴 ${val} dB(A)</span>`;
+}
+
+function cavPill(sv, label){
+  if(sv===undefined||sv===null||sv==='') return '<span class="pill p-gray">—</span>';
+  const val=parseFloat(sv);
+  if(val>=1.5) return `<span class="pill p-green">✅ ${vn(sv,3)} — No Cavitation</span>`;
+  if(val>=1.0) return `<span class="pill p-yellow">⚠ ${vn(sv,3)} — Possible</span>`;
+  return             `<span class="pill p-red">🔴 ${vn(sv,3)} — Cavitation</span>`;
+}
+
+function regimePill(r){
+  if(!r) return '<span class="pill p-gray">—</span>';
+  if(r.toLowerCase().includes('turb')) return `<span class="pill p-green">${r}</span>`;
+  if(r.toLowerCase().includes('lam'))  return `<span class="pill p-yellow">${r}</span>`;
+  return `<span class="pill p-blue">${r}</span>`;
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════════════════
+function render(d){
+  const wrap = document.getElementById('wrap');
+  const genDate = d.generated ? new Date(d.generated).toLocaleString() : '—';
+  const pU  = d.p_unit || 'bar';
+  const qU  = d.q_unit || '';
+  const tU  = d.T_unit || '°C';
+
+  wrap.innerHTML = `
+    <div class="ok-bar">✅ QR scanned &amp; decoded successfully — all data verified</div>
+
+    <!-- ── KEY METRICS ── -->
+    <div class="metrics">
+      <div class="met">
+        <div class="lbl">Design Cv</div>
+        <div class="val">${v(d.design_cv)}</div>
+        <div class="unit">${v(d.cv_unit)}</div>
+      </div>
+      <div class="met">
+        <div class="lbl">Design Kv</div>
+        <div class="val">${v(d.design_kv)}</div>
+        <div class="unit">m³/h·bar½</div>
+      </div>
+      <div class="met">
+        <div class="lbl">Noise</div>
+        <div class="val" style="font-size:1.4rem">${d.noise!=null?parseFloat(d.noise).toFixed(1):'—'}</div>
+        <div class="unit">dB(A)</div>
+      </div>
+      <div class="met">
+        <div class="lbl">Valve Size</div>
+        <div class="val" style="font-size:1.2rem">${v(d.size)}</div>
+        <div class="unit">${v(d.nps)} NPS · ${v(d.rating)}</div>
+      </div>
+    </div>
+
+    <!-- ── PROJECT INFO ── -->
+    <div class="card">
+      <div class="sec-head">📁 Project Information</div>
+      <div class="row"><span class="rl">Tag Number</span><span class="rv">${v(d.tag)}</span></div>
+      <div class="row"><span class="rl">Document No.</span><span class="rv">${v(d.docno)} &nbsp; Rev: ${v(d.rev)}</span></div>
+      <div class="row"><span class="rl">Project</span><span class="rv">${v(d.proj)}</span></div>
+      <div class="row"><span class="rl">Client</span><span class="rv">${v(d.client)}</span></div>
+      <div class="row"><span class="rl">Engineering By</span><span class="rv">${v(d.engg)}</span></div>
+      <div class="row"><span class="rl">Date</span><span class="rv">${v(d.date)}</span></div>
+      <div class="row"><span class="rl">Standard</span><span class="rv"><span class="pill p-blue">${v(d.standard)}</span></span></div>
+      <div class="row"><span class="rl">Generated</span><span class="rv">${genDate}</span></div>
+    </div>
+
+    <!-- ── PROCESS CONDITIONS (3-column) ── -->
+    <div class="card">
+      <div class="sec-head">🌡️ Process Conditions</div>
+      <div style="padding:14px 12px;overflow-x:auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="text-align:left">Parameter</th>
+              <th>Min</th>
+              <th>Normal</th>
+              <th>Max</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rl2">Fluid</td>
+              <td colspan="3" style="text-align:center;font-weight:600">${v(d.fluid)}</td>
+            </tr>
+            <tr>
+              <td class="rl2">Flow Rate (${qU})</td>
+              <td>${vn(d.Q_min,2)}</td>
+              <td><strong>${vn(d.Q_nor,2)}</strong></td>
+              <td>${vn(d.Q_max,2)}</td>
+            </tr>
+            <tr>
+              <td class="rl2">Inlet P1 (${pU})</td>
+              <td>${vn(d.p1_min,3)}</td>
+              <td><strong>${vn(d.p1_nor,3)}</strong></td>
+              <td>${vn(d.p1_max,3)}</td>
+            </tr>
+            <tr>
+              <td class="rl2">Outlet P2 (${pU})</td>
+              <td>${vn(d.p2_min,3)}</td>
+              <td><strong>${vn(d.p2_nor,3)}</strong></td>
+              <td>${vn(d.p2_max,3)}</td>
+            </tr>
+            <tr>
+              <td class="rl2">ΔP (${pU})</td>
+              <td>${(d.p1_min!=null&&d.p2_min!=null)?vn(d.p1_min-d.p2_min,3):'—'}</td>
+              <td><strong>${(d.p1_nor!=null&&d.p2_nor!=null)?vn(d.p1_nor-d.p2_nor,3):'—'}</strong></td>
+              <td>${(d.p1_max!=null&&d.p2_max!=null)?vn(d.p1_max-d.p2_max,3):'—'}</td>
+            </tr>
+            <tr>
+              <td class="rl2">Temperature (${tU})</td>
+              <td>${vn(d.T1_min,1)}</td>
+              <td><strong>${vn(d.T1_nor,1)}</strong></td>
+              <td>${vn(d.T1_max,1)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── FLUID PROPERTIES ── -->
+    <div class="card">
+      <div class="sec-head">💧 Fluid Properties</div>
+      <div class="row"><span class="rl">Density ρ₁</span><span class="rv">${vn(d.rho1,2)} kg/m³</span></div>
+      <div class="row"><span class="rl">Vapour Pressure Pv</span><span class="rv">${vn(d.pv,4)} ${pU}</span></div>
+      <div class="row"><span class="rl">Critical Pressure Pc</span><span class="rv">${vn(d.pc,3)} ${pU}</span></div>
+      <div class="row"><span class="rl">Speed of Sound</span><span class="rv">${vn(d.sos,1)} m/s</span></div>
+      <div class="row"><span class="rl">Liquid Pressure Recovery FL</span><span class="rv">${vn(d.FL,3)}</span></div>
+      <div class="row"><span class="rl">Pressure Differential Ratio XT</span><span class="rv">${vn(d.XT,3)}</span></div>
+      <div class="row"><span class="rl">Valve Style Modifier Fd</span><span class="rv">${vn(d.Fd,3)}</span></div>
+      <div class="row"><span class="rl">Critical Pressure Ratio FF</span><span class="rv">${vn(d.FF,4)}</span></div>
+      <div class="row"><span class="rl">Piping Geometry Factor Fp</span><span class="rv">${vn(d.Fp,4)}</span></div>
+    </div>
+
+    <!-- ── SIZING RESULTS ── -->
+    <div class="card">
+      <div class="sec-head">📊 Sizing Results</div>
+      <div style="padding:14px 12px;overflow-x:auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="text-align:left">Parameter</th>
+              <th>Min</th>
+              <th>Normal</th>
+              <th>Max</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="rl2">Required Cv (${v(d.cv_unit)})</td>
+              <td>${vn(d.cv_min,2)}</td>
+              <td><strong>${vn(d.cv_nor,2)}</strong></td>
+              <td>${vn(d.cv_max,2)}</td>
+            </tr>
+            <tr>
+              <td class="rl2">Sigma (σv)</td>
+              <td>${d.sv_min!=null?`<span>${cavPill(d.sv_min)}</span>`:vn(d.sv_min,3)}</td>
+              <td>${d.sv_nor!=null?`<span>${cavPill(d.sv_nor)}</span>`:vn(d.sv_nor,3)}</td>
+              <td>${d.sv_max!=null?`<span>${cavPill(d.sv_max)}</span>`:vn(d.sv_max,3)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="row"><span class="rl">Design Cv (selected)</span><span class="rv">${v(d.design_cv)} ${v(d.cv_unit)}</span></div>
+      <div class="row"><span class="rl">Design Kv</span><span class="rv">${v(d.design_kv)} m³/h·bar½</span></div>
+      <div class="row"><span class="rl">Reynolds Number Re</span><span class="rv">${d.Rev!=null?Number(d.Rev).toLocaleString():'—'}</span></div>
+      <div class="row"><span class="rl">Flow Regime</span><span class="rv">${regimePill(d.regime)}</span></div>
+      <div class="row"><span class="rl">Reynolds Correction FR</span><span class="rv">${vn(d.FR,4)}</span></div>
+      <div class="row"><span class="rl">Choke ΔP</span><span class="rv">${vn(d.choke_dp,3)} ${pU}</span></div>
+      <div class="row"><span class="rl">Noise Level</span><span class="rv">${noisePill(d.noise)}</span></div>
+    </div>
+
+    <!-- ── VALVE SELECTION ── -->
+    <div class="card">
+      <div class="sec-head">🔧 Valve Selection</div>
+      <div class="row"><span class="rl">Manufacturer</span><span class="rv">${v(d.mfr)}</span></div>
+      <div class="row"><span class="rl">Series / Model</span><span class="rv">${v(d.series)}</span></div>
+      <div class="row"><span class="rl">Body Type</span><span class="rv">${v(d.body_type)}</span></div>
+      <div class="row"><span class="rl">Trim Type</span><span class="rv">${v(d.trim)}</span></div>
+      <div class="row"><span class="rl">Valve Size</span><span class="rv">${v(d.size)}</span></div>
+      <div class="row"><span class="rl">NPS</span><span class="rv">${v(d.nps)}</span></div>
+      <div class="row"><span class="rl">Pressure Rating</span><span class="rv">${v(d.rating)}</span></div>
+      <div class="row"><span class="rl">Body Material</span><span class="rv">${v(d.body_mat)}</span></div>
+      <div class="row"><span class="rl">Seat / Orifice Dia.</span><span class="rv">${v(d.seat_dia)} mm</span></div>
+    </div>
+
+    <!-- ── RAW JSON ── -->
+    <details>
+      <summary>🔍 View raw decoded JSON payload</summary>
+      <pre>${JSON.stringify(d, null, 2)}</pre>
+    </details>
+
+    <div class="footer">
+      <p>Smart Instru Calculation &nbsp;·&nbsp; Control Valve Sizing Tool</p>
+      <p>IEC 60534-2-1:2011 &nbsp;/&nbsp; ANSI ISA-75.01.01-2012</p>
+      <p style="margin-top:4px;font-size:.7rem;">
+        Workflow: Fill Form → Generate JSON → pako gzip → Base64 → CVSZ1: prefix → QR<br>
+        Scan QR → summary.html → Decompress → Display &nbsp;|&nbsp; No server · No internet · Works forever
+      </p>
+    </div>
+  `;
+}
+
+function renderError(msg){
+  document.getElementById('wrap').innerHTML = `
+    <div class="err-bar">❌ ${msg}</div>
+    <div class="empty">
+      <div class="icon">📷</div>
+      <h2>No valid QR data found</h2>
+      <p>Scan the QR code on a CV Tool datasheet PDF.<br>
+      The URL must contain <code>?d=CVSZ1:…</code></p>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════
+// ENTRY POINT
+// ════════════════════════════════════════════════════════
+(function main(){
+  const params  = new URLSearchParams(window.location.search);
+  const encoded = params.get('d');
+
+  if(!encoded){
+    // Demo mode — show placeholder
+    document.getElementById('wrap').innerHTML = `
+      <div class="warn-bar">⚠️ Demo mode — no QR data in URL. Scan a real QR code from the CV Tool PDF to populate live data.</div>
+      <div class="empty">
+        <div class="icon">📱</div>
+        <h2>Scan the QR code on your datasheet</h2>
+        <p>The CV Tool embeds a compressed JSON payload in the QR.<br>
+        Scanning it will open this page with full valve sizing data.</p>
+      </div>
+      <div class="footer">
+        <p>Smart Instru Calculation &nbsp;·&nbsp; IEC 60534-2-1:2011</p>
+        <p style="margin-top:4px;font-size:.7rem;">Compression: JSON → pako gzip → Base64 → CVSZ1: prefix → QR Code</p>
+      </div>`;
+    return;
+  }
+
+  try {
+    const data = decompress(decodeURIComponent(encoded));
+    render(data);
+  } catch(e){
+    console.error('Decompression failed:', e);
+    renderError('Decompression failed: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

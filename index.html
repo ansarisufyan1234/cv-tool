@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CV Tool – Summary Report</title>
+<title>Smart Instru Calculation – Summary Report</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <style>
 :root{
@@ -84,8 +84,8 @@ pre{background:#f1f5f9;border-radius:8px;padding:14px;font-size:.73rem;overflow-
 
 <div class="hdr">
   <div class="logo">⚙️</div>
-  <h1>Control Valve Sizing — Summary Report</h1>
-  <div class="sub">Smart Instru Calculation · IEC 60534-2-1:2011 / ANSI ISA-75.01.01</div>
+  <h1 id="hdrTitle">Control Valve Sizing — Summary Report</h1>
+  <div class="sub" id="hdrSub">Smart Instru Calculation · IEC 60534-2-1:2011 / ANSI ISA-75.01.01</div>
   <div class="badge">COMPRESSED QR · OFFLINE · NO SERVER</div>
 </div>
 
@@ -99,15 +99,19 @@ pre{background:#f1f5f9;border-radius:8px;padding:14px;font-size:.73rem;overflow-
 // Supports: CVSZ1: prefix  → pako gzip + Base64
 // ════════════════════════════════════════════════════════
 const PREFIX = 'CVSZ1:';
+const PREFIX_OF = 'OFSZ1:';   // orifice / flow-element datasheets
 
 function decompress(encoded){
-  if(!encoded.startsWith(PREFIX)) throw new Error('Unknown prefix — expected CVSZ1:');
-  const b64    = encoded.slice(PREFIX.length);
+  const isOF = encoded.startsWith(PREFIX_OF);
+  if(!encoded.startsWith(PREFIX) && !isOF) throw new Error('Unknown prefix — expected CVSZ1: or OFSZ1:');
+  const b64    = encoded.slice(PREFIX.length);   // both prefixes are 6 characters
   const binary = atob(b64);
   const bytes  = new Uint8Array(binary.length);
   for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
   const json = new TextDecoder().decode(pako.ungzip(bytes));
-  return JSON.parse(json);
+  const obj = JSON.parse(json);
+  if(isOF) obj._kind = 'of';
+  return obj;
 }
 
 // ════════════════════════════════════════════════════════
@@ -325,6 +329,75 @@ function render(d){
   `;
 }
 
+
+// ════════════════════════════════════════════════════════
+// ORIFICE / FLOW-ELEMENT SUMMARY  (OFSZ1: payload)
+// ════════════════════════════════════════════════════════
+const esc = x => String(x==null?'—':x).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function statusPill(s){
+  if(s==='PASS')   return '<span class="pill p-green">✅ PASS</span>';
+  if(s==='REVIEW') return '<span class="pill p-yellow">⚠ REVIEW</span>';
+  if(s==='FAIL')   return '<span class="pill p-red">🔴 FAIL</span>';
+  return '<span class="pill p-gray">'+esc(s)+'</span>';
+}
+function renderOrifice(d){
+  document.getElementById('hdrTitle').textContent = (d.title||'Flow Element')+' — Summary Report';
+  document.getElementById('hdrSub').textContent = 'Smart Instru Calculation · '+(d.std||'');
+  document.querySelector('.hdr .logo').textContent = '🕳️';
+  const wrap = document.getElementById('wrap');
+  const genDate = d.g ? new Date(d.g).toLocaleString() : '—';
+  const st = d.status||[];
+  const worst = st.includes('FAIL')?'FAIL':st.includes('REVIEW')?'REVIEW':'PASS';
+  const bar = worst==='PASS' ? '<div class="ok-bar">✅ QR scanned &amp; decoded — all operating cases within limits</div>'
+            : worst==='REVIEW' ? '<div class="warn-bar">⚠ QR decoded — review required (see case status below)</div>'
+            : '<div class="err-bar">🔴 QR decoded — one or more cases NOT acceptable</div>';
+  const kp = (d.kpis||[]).map(k=>`<div class="met"><div class="lbl">${esc(k[0])}</div><div class="val" style="font-size:${String(k[1]).length>9?'1.15rem':'1.7rem'}">${esc(k[1])}</div></div>`).join('');
+  const row3 = (r,ix)=>`<tr><td class="rl2">${esc(r[0])}${r[4]?' ('+esc(r[4])+')':''}</td><td>${esc(r[1])}</td><td><strong>${esc(r[2])}</strong></td><td>${esc(r[3])}</td></tr>`;
+  const tableHead = '<thead><tr><th style="text-align:left">Parameter</th><th>Maximum</th><th>Normal</th><th>Minimum</th></tr></thead>';
+  const condRows = (d.cond||[]).map(row3).join('');
+  const resRows  = (d.res||[]).map(r=>`<tr><td class="rl2">${esc(r[0])}</td><td>${esc(r[1])}</td><td><strong>${esc(r[2])}</strong></td><td>${esc(r[3])}</td></tr>`).join('');
+  const geoRows  = (d.geo||[]).map(g=>`<div class="row"><span class="rl">${esc(g[0])}</span><span class="rv">${esc(g[1])}</span></div>`).join('');
+  let stages='';
+  if(d.stages&&d.stages.length){
+    stages = `<div class="card"><div class="sec-head">🕳️ Stage Results — Normal Condition</div><div style="padding:14px 12px;overflow-x:auto;"><table class="tbl"><thead><tr><th>Stage</th><th>Hole Ø (mm)</th><th>β eq.</th><th>C eq.</th><th>Hole vel. (m/s)</th><th>Status</th></tr></thead><tbody>`+
+      d.stages.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')+`</tbody></table></div></div>`;
+  }
+  const sd = d.sd||{p:0,w:0,f:0};
+  const bad = (d.bad||[]).map(b=>`<div class="row"><span class="rl">${esc(b[0])}</span><span class="rv">${statusPill(b[1]==='WARNING'?'REVIEW':'FAIL')}</span></div>`).join('');
+  const labs=['Maximum flow','Normal flow','Minimum flow'];
+  wrap.innerHTML = `
+    ${bar}
+    <div class="metrics">${kp}</div>
+    <div class="card"><div class="sec-head">✅ Case Status</div>
+      ${st.map((s,i)=>`<div class="row"><span class="rl">${labs[i]||'Case '+(i+1)}</span><span class="rv">${statusPill(s)}</span></div>`).join('')}
+    </div>
+    <div class="card"><div class="sec-head">📁 Project Information</div>
+      <div class="row"><span class="rl">Tag Number</span><span class="rv">${esc(d.tag)}</span></div>
+      <div class="row"><span class="rl">Document No.</span><span class="rv">${esc(d.docno)} &nbsp; Rev: ${esc(d.rev)}</span></div>
+      <div class="row"><span class="rl">Project</span><span class="rv">${esc(d.proj)}</span></div>
+      <div class="row"><span class="rl">Client</span><span class="rv">${esc(d.client)}</span></div>
+      <div class="row"><span class="rl">Engineering By</span><span class="rv">${esc(d.engg)}</span></div>
+      <div class="row"><span class="rl">Prepared / Checked / Approved</span><span class="rv">${esc(d.prep)} / ${esc(d.chk)} / ${esc(d.app)}</span></div>
+      <div class="row"><span class="rl">Date</span><span class="rv">${esc(d.date)}</span></div>
+      <div class="row"><span class="rl">Calculation Basis</span><span class="rv"><span class="pill p-blue">${esc(d.std)}</span></span></div>
+      <div class="row"><span class="rl">Fluid / Service</span><span class="rv">${esc(d.fluid)} · ${esc(d.svc)}</span></div>
+      <div class="row"><span class="rl">Generated</span><span class="rv">${genDate}</span></div>
+    </div>
+    <div class="card"><div class="sec-head">🌡️ Process Conditions</div><div style="padding:14px 12px;overflow-x:auto;"><table class="tbl">${tableHead}<tbody>${condRows}</tbody></table></div></div>
+    ${geoRows?`<div class="card"><div class="sec-head">📐 Geometry</div>${geoRows}</div>`:''}
+    <div class="card"><div class="sec-head">📊 Key Results</div><div style="padding:14px 12px;overflow-x:auto;"><table class="tbl">${tableHead}<tbody>${resRows}</tbody></table></div></div>
+    ${stages}
+    <div class="card"><div class="sec-head">📏 Automatic Standards Screening</div>
+      <div class="row"><span class="rl">Checks passed</span><span class="rv"><span class="pill p-green">${sd.p}</span></span></div>
+      <div class="row"><span class="rl">Warnings</span><span class="rv"><span class="pill ${sd.w?'p-yellow':'p-gray'}">${sd.w}</span></span></div>
+      <div class="row"><span class="rl">Failures</span><span class="rv"><span class="pill ${sd.f?'p-red':'p-gray'}">${sd.f}</span></span></div>
+      ${bad}
+    </div>
+    <details><summary>🔍 View raw decoded JSON payload</summary><pre>${esc(JSON.stringify(d,null,2))}</pre></details>
+    <div class="footer"><p>Smart Instru Calculation &nbsp;·&nbsp; ${esc(d.title)}</p><p>${esc(d.std)}</p>
+      <p style="margin-top:4px;font-size:.7rem;">Preliminary engineering calculation — verify against the issued datasheet before use.<br>Workflow: Fill Form → Generate JSON → pako gzip → Base64 → OFSZ1: prefix → QR · Scan → Decompress → Display</p></div>`;
+}
+
 function renderError(msg){
   document.getElementById('wrap').innerHTML = `
     <div class="err-bar">❌ ${msg}</div>
@@ -362,7 +435,7 @@ function renderError(msg){
 
   try {
     const data = decompress(decodeURIComponent(encoded));
-    render(data);
+    if(data._kind==='of') renderOrifice(data); else render(data);
   } catch(e){
     console.error('Decompression failed:', e);
     renderError('Decompression failed: ' + e.message);
